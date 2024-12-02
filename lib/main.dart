@@ -1,92 +1,69 @@
+// lib/main.dart
+import 'package:demo/common/infraestructure/storage/main.dart';
+import 'package:demo/login/presentation/login_screen.dart';
+import 'package:demo/session/infraestructure/state/session_state.dart';
+import 'package:demo/session/infraestructure/storage/session_storage.dart';
+import 'package:demo/todo_list/infraestructure/state/task_state.dart';
+import 'package:demo/todo_list/infraestructure/storage/task_storage.dart';
+import 'package:demo/todo_list/presentation/todo_list_screen.dart';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import 'package:hive_flutter/hive_flutter.dart';
+import 'package:provider/provider.dart';
 
-void main() {
-  runApp(App());
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Hive.initFlutter();
+  final task = TaskStorage();
+  final session = SessionStorage();
+  await initilizeBoxes([task, session]);
+  runApp(MyApp(task, session));
 }
 
-class App extends StatelessWidget {
+/// [MyApp] core widget
+class MyApp extends StatelessWidget {
+  /// constructor
+  const MyApp(this._taskStorage, this._sessionStorage, {super.key});
+  final TaskStorage _taskStorage;
+  final SessionStorage _sessionStorage;
+
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(title: 'To-Do-List', home: TodoList());
-  }
-}
-
-class TodoList extends StatefulWidget {
-  @override
-  _TodoListState createState() => _TodoListState();
-}
-
-class _TodoListState extends State<TodoList> {
-  final List<String> _todoList = <String>[];
-  final TextEditingController _textFieldController = TextEditingController();
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('To-Do List'),
-      ),
-      body: ListView(children: _getItems()),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => _displayDialog(context),
-        tooltip: 'Add Item',
-        child: Icon(Icons.add),
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider(
+          create: (context) => TaskState(storage: _taskStorage),
+        ),
+        ChangeNotifierProvider(
+          create: (context) => SessionState(storage: _sessionStorage),
+        ), // Add SessionStat
+      ],
+      child: MaterialApp.router(
+        title: 'To-Do List App',
+        theme: ThemeData(),
+        routerConfig: _router,
       ),
     );
   }
 
-  void _addTodoItem(String title) {
-    //Wrapping it inside a set state will notify
-    // the app that the state has changed
-
-    setState(() {
-      _todoList.add(title);
-    });
-    _textFieldController.clear();
-  }
-
-  //Generate list of item widgets
-  Widget _buildTodoItem(String title) {
-    return ListTile(
-      title: Text(title),
+  // Define the GoRouter with two screens
+  GoRouter get _router {
+    return GoRouter(
+      initialLocation: (_sessionStorage.box?.isEmpty ?? true)
+          ? '/login'
+          : '/todo', // Start at the appropriate screen based on the session token
+      routes: [
+        // Login Screen Route
+        GoRoute(
+          path: '/login',
+          builder: (context, state) => LoginScreen(),
+        ),
+        // To-Do List Screen Route
+        GoRoute(
+          path: '/todo',
+          builder: (context, state) => const TodoListScreen(),
+        ),
+      ],
     );
-  }
-
-  //Generate a single item widget
-  Future<AlertDialog> _displayDialog(BuildContext context) async {
-    return showDialog(
-        context: context,
-        builder: (BuildContext context) {
-          return AlertDialog(
-            title: const Text('Add a task to your List'),
-            content: TextField(
-              controller: _textFieldController,
-              decoration: const InputDecoration(hintText: 'Enter task here'),
-            ),
-            actions: <Widget>[
-              FlatButton(
-                child: const Text('ADD'),
-                onPressed: () {
-                  Navigator.of(context).pop();
-                  _addTodoItem(_textFieldController.text);
-                },
-              ),
-              FlatButton(
-                child: const Text('CANCEL'),
-                onPressed: () {
-                  Navigator.of(context).pop();
-                },
-              )
-            ],
-          );
-        });
-  }
-
-  List<Widget> _getItems() {
-    final List<Widget> _todoWidgets = <Widget>[];
-    for (String title in _todoList) {
-      _todoWidgets.add(_buildTodoItem(title));
-    }
-    return _todoWidgets;
   }
 }
